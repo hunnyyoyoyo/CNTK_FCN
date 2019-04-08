@@ -140,6 +140,7 @@ def train():
 		progress_frequency=100
 	).train()
 
+	z.save('result.model')
 train()
 
 
