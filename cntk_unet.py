@@ -1,10 +1,3 @@
-# Copyright (c) Microsoft. All rights reserved.
-# Authors: Kolya Malkin, Nebojsa Jojic
-#
-# Licensed under the MIT license. See LICENSE.md file in the project root
-# for full license information.
-# ==============================================================================
-
 import numpy as np
 import io
 import cntk
@@ -19,13 +12,6 @@ def UpSampling2D(x):
     xx = C.splice(xr, xr, axis=-1)  # axis=-1 refers to the last axis
     xy = C.splice(xx, xx, axis=-3)  # axis=-3 refers to the middle axis
     r = C.reshape(xy, (x.shape[0], x.shape[1] * 2, x.shape[2] * 2))
-    '''
-    print ("upsampling")
-    print(xr.shape)
-    print(xx.shape)
-    print(xy.shape)
-    print(r.shape)
-    '''
     return r
 
 def cntk_unet(input): 
@@ -67,12 +53,5 @@ def cntk_unet(input):
     conv9 = Convolution((3,3), 64, init=glorot_uniform(), activation=relu, pad=True)(conv9)
     conv10 = Convolution((3, 3), 1, init=glorot_uniform(), activation=sigmoid,pad= True)(conv9)      
 
-    C.logging.graph.plot(conv10, 'model.png')  
     return conv10
-
-def dice_coefficient(x, y):
-    # https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient
-    #intersection = C.reduce_sum(x - y)
-    err = squared_error(x,y,"se")
-    return err #2 * intersection / (C.reduce_sum(x) + C.reduce_sum(y))
 

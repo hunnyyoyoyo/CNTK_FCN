@@ -118,7 +118,7 @@ def train():
 	progress_writers = [C.logging.progress_print.ProgressPrinter(
 		tag='Training',
 		num_epochs=num_epochs,
-		freq=20)]
+		freq=100)]
 
 	lr_schedule = learning_parameter_schedule(lr_per_mb)
 	mm_schedule = momentum_schedule(momentum_per_mb)
@@ -129,15 +129,15 @@ def train():
 	C.logging.progress_print.log_number_of_parameters(z)
 	training_session(
 		trainer=trainer,
-		max_samples=10000,
+		max_samples=2000,
 		mb_source=minibatch_source, 
-		mb_size=4,
+		mb_size=10,
 		model_inputs_to_streams=input_map,
 		checkpoint_config=CheckpointConfig(
-			frequency=20,
-			filename=os.path.join("D:/git/segemetaion/", 'trained_checkpoint.model'),
+			frequency=100,
+			filename=os.path.join('trained_checkpoint.model'),
 			preserve_all=True),
-		progress_frequency=20
+		progress_frequency=100
 	).train()
 
 train()
