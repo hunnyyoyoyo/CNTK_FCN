@@ -127,7 +127,7 @@ reader = create_reader("image.txt", "label.txt")
 #z = cntk_unet.cntk_unet(feature)
 # Define the model
 z = cntk_unet.model(1, 256,
-                                2, [64, 128, 256, 512])(feature)
+                                2, [64, 32, 32, 32])(feature)
 
 graph_description = C.logging.graph.plot(z, "graph.png")
 
