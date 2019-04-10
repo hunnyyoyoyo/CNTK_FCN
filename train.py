@@ -20,12 +20,12 @@ num_color_channels = 1
 num_classes        = 3
 image_width        = 256
 image_height       = 256
-epoch_size		   = 1600
+epoch_size		   = 100
 lr_per_mb = [0.2]*10 + [0.1]
 momentum_per_mb = 0.9
 l2_reg_weight = 0.00001
-num_epochs = 10000
-mb_size	= 20
+num_epochs = 10
+mb_size	= 2
 
 
 Imagefile = os.listdir('data/image/')
@@ -124,7 +124,15 @@ label = C.input_variable(l_dim)
 
 # Define the minibatch source
 reader = create_reader("image.txt", "label.txt")
-z = cntk_unet.cntk_unet(feature)
+#z = cntk_unet.cntk_unet(feature)
+# Define the model
+z = cntk_unet.model(1, 256,
+                                2, [64, 128, 256, 512])(feature)
+
+graph_description = C.logging.graph.plot(z, "graph.png")
+
+#print(graph_description)
+
 loss = C.fmeasure(z,label/255)
 progress_printer = ProgressPrinter(tag='Training', num_epochs=num_epochs)
 lr_schedule = learning_parameter_schedule(lr_per_mb)
@@ -146,6 +154,8 @@ for epoch in range(num_epochs):       # loop over epochs
 			print ("Processed {0} samples".format(sample_count))
 
 	trainer.summarize_training_progress()
+
+z.save('result.model')
 
 
 
