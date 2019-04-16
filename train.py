@@ -15,12 +15,14 @@ from cntk.learners import learning_rate_schedule, UnitType
 from cntk.device import try_set_default_device, gpu
 from tqdm import tqdm
 from cntk.logging import ProgressPrinter
-from cntk_resnet_fcn import create_transfer_learning_model
+from cntk_resnet_unet import create_transfer_learning_model
+from cntk.losses import fmeasure
+
 # Paths relative to current python file.
 data_path = os.path.join("data/M4")
 zip_path = os.path.join("data-zip")
 model_path = os.path.join("Models")
-base_model_file = os.path.join(model_path, "ResNet18_ImageNet_CNTK.model")
+base_model_file = os.path.join(model_path, "ResNet50_ImageNet_CNTK.model")
 make_model = False
 
 def train(train_image_files, train_mask_files, val_image_files, val_mask_files, base_model_file, freeze=False):
@@ -30,7 +32,11 @@ def train(train_image_files, train_mask_files, val_image_files, val_mask_files, 
     y = C.input_variable(sample_mask[0].shape)
     
     z = create_transfer_learning_model(x, source.num_classes, base_model_file, freeze)
-    dice_coef = cntk_resnet_fcn.dice_coefficient(z, y)  
+    dice_coef = fmeasure(z, y)
+
+
+    mean_ce, pe = training_helper.criteria(y, z/255, 224,
+						                    source.num_classes, [0.0, 1.0])
 
 
     # Prepare model and trainer
@@ -43,13 +49,13 @@ def train(train_image_files, train_mask_files, val_image_files, val_mask_files, 
         lr_mb = [0.0001] * 1 # deliberately shrink if training on CPU...
 
     # Get minibatches of training data and perform model training
-    minibatch_size = 8
+    minibatch_size = 2
     num_epochs = len(lr_mb)
         
     progress_printer = ProgressPrinter(tag='Training', num_epochs=num_epochs)
     lr = learning_rate_schedule(lr_mb, UnitType.sample)
     momentum = C.learners.momentum_as_time_constant_schedule(0.9)
-    trainer = C.Trainer(z, (-dice_coef, -dice_coef), C.learners.adam(z.parameters, lr=lr, momentum=momentum),progress_printer)
+    trainer = C.Trainer(z, (mean_ce, pe), C.learners.adam(z.parameters, lr=lr, momentum=momentum),progress_printer)
     
     training_errors = []
     test_errors = []

@@ -20,3 +20,15 @@ def measure_error(source, data_x_files, data_y_files, x, y, trainer, minibatch_s
 
     return np.mean(errors)
 #-------------------------------------------------------------------------------
+
+def criteria(label, output, block_size, c_classes, weights):
+	''' Define the loss function and metric '''
+	probs = C.softmax(output, axis=0)
+	log_probs = C.log(probs)
+	ce = C.times(weights, -C.element_times(log_probs, label),
+					output_rank=2)
+	mean_ce = C.reduce_mean(ce)
+	_, w, h = label.shape
+	pe = C.classification_error(probs, label, axis=0) - \
+		C.reduce_sum(C.slice(label, 0, 0, 1)) / C.reduce_sum(label)
+	return(mean_ce, pe)

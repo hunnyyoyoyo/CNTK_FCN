@@ -1,18 +1,11 @@
-# Built on top of the resnet model in CNTK repository
-# https://github.com/Microsoft/CNTK/blob/master/Examples/Image/Classification/ResNet/Python/resnet_models.py
-#
-# === Original Copyright ======================================================
-# Copyright (c) Microsoft. All rights reserved.
-#
-# Licensed under the MIT license. See LICENSE.md file in the project root
-# for full license information.
-# ==============================================================================
-
+import cntk as C
 from cntk.initializer import he_normal
 from cntk.layers import AveragePooling, BatchNormalization, Convolution, Dense
 from cntk.ops import element_times, relu, sigmoid
 from cntk import load_model, placeholder, Constant
-import cntk as C
+from cntk.layers import *
+from cntk.initializer import *
+from cntk.logging import graph
 
 #
 # Resnet building blocks
@@ -112,35 +105,39 @@ num_channels = 3
 # Defines the fully convolutional models for image segmentation (transfer learning)
 #
 def create_transfer_learning_model(input, num_classes, model_file, freeze=False):
-    
-    base_model = load_model(model_file)
-    base_model = C.as_composite(base_model[3].owner)
 
-    # Load the pretrained classification net and find nodes
-    feature_node = C.logging.find_by_name(base_model, feature_node_name)
-    last_node = C.logging.find_by_name(base_model, last_hidden_node_name)
-    
-    base_model = C.combine([last_node.owner]).clone(C.CloneMethod.freeze if freeze else C.CloneMethod.clone, {feature_node: C.placeholder(name='features')})
-    base_model = base_model(C.input_variable((num_channels, image_height, image_width)))
+    conv1 = Convolution((3,3), 64, init=glorot_uniform(), activation=relu, pad=True)(input)
+    conv1 = Convolution((3,3), 64, init=glorot_uniform(), activation=relu, pad=True)(conv1)
+    pool1 = MaxPooling((2,2), strides=(2,2))(conv1)
 
-    r1 = C.logging.find_by_name(base_model, "z.x.x.r")
-    r2_2 = C.logging.find_by_name(base_model, "z.x.x.x.x.r")
-    r3_2 = C.logging.find_by_name(base_model, "z.x.x.x.x.x.x.r")
-    r4_2 = C.logging.find_by_name(base_model, "z.x.x.x.x.x.x.x.x.r")
+    conv2 = Convolution((3,3), 128, init=glorot_uniform(), activation=relu, pad=True)(pool1)
+    conv2 = Convolution((3,3), 128, init=glorot_uniform(), activation=relu, pad=True)(conv2)
+    pool2 = MaxPooling((2,2), strides=(2,2))(conv2)
 
-    up_r1 = OneByOneConvAndUpSample(r1, 3, num_classes)
-    up_r2_2 = OneByOneConvAndUpSample(r2_2, 2, num_classes)
-    up_r3_2 = OneByOneConvAndUpSample(r3_2, 1, num_classes)
-    up_r4_2 = OneByOneConvAndUpSample(r4_2, 0, num_classes)
-    
-    print(up_r1.shape)
-    print(up_r3_2.shape)
-    print(up_r2_2.shape)
-    #merged = C.splice(up_r1, up_r3_2, up_r2_2, axis=0)
+    conv3 = Convolution((3,3), 256, init=glorot_uniform(), activation=relu, pad=True)(pool2)
+    conv3 = Convolution((3,3), 256, init=glorot_uniform(), activation=relu, pad=True)(conv3)
+    pool3 = MaxPooling((2,2), strides=(2,2))(conv3)
 
-    resnet_fcn_out = Convolution((1, 1), num_classes, init=he_normal(), activation=sigmoid, pad=True)(merged)
+    conv4 = Convolution((3,3), 512, init=glorot_uniform(), activation=relu, pad=True)(pool3)
+    conv4 = Convolution((3,3), 512, init=glorot_uniform(), activation=relu, pad=True)(conv4)
+    pool4 = MaxPooling((2,2), strides=(2,2))(conv4)
 
-    z = UpSampling2DPower(resnet_fcn_out,2)
-    
-    return z
+    conv5 = Convolution((3,3), 1024, init=glorot_uniform(), activation=relu, pad=True)(pool4)
+    conv5 = Convolution((3,3), 1024, init=glorot_uniform(), activation=relu, pad=True)(conv5)
 
+    r5_us = layers.ConvolutionTranspose((3, 3), 1024, strides=2, output_shape=(image_height/8, image_height/8), pad=True, bias=False, init=bilinear(3, 3))(conv5)
+
+    #r4_us = layers.ConvolutionTranspose((3, 3), c_map[3], strides=2, output_shape=(block_size/4, block_size/4), pad=True, bias=False, init=bilinear(3, 3))(r4_2)
+
+    o4 = relu(layers.Convolution((1, 1), 512)(conv4) + layers.Convolution((1, 1), 512)(r5_us))
+    o4_us = layers.ConvolutionTranspose((3, 3), 512, strides=2, output_shape=(image_height/4, image_height/4), pad=True, bias=False, init=bilinear(3, 3))(o4)
+
+    o3 = relu(layers.Convolution((1, 1), 256)(conv3) + layers.Convolution((1, 1), 256)(o4_us))
+    o3_us = layers.ConvolutionTranspose((3, 3), 256, strides=2, output_shape=(image_height/2, image_height/2), pad=True, bias=False, init=bilinear(3, 3))(o3)
+
+    o2 = relu(layers.Convolution((1, 1), 128)(conv2) + layers.Convolution((1, 1), 128)(o3_us))
+    o2_us = layers.ConvolutionTranspose((3, 3), 128, strides=2, output_shape=(image_height, image_height), pad=True, bias=False, init=bilinear(3, 3))(o2)
+
+    o1 = relu(layers.Convolution((3, 3), 64, pad=True)(input) + layers.Convolution((1, 1),64)(conv1) + layers.Convolution((1, 1), 64)(o2_us))
+
+    return layers.Convolution((3, 3), num_classes, pad=True, activation=relu)(o1)
